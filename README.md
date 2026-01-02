@@ -1,5 +1,9 @@
 **这是一个利用AI翻译终端输出的程序**
 
+the README_English.md is coming
+
+同时有翻译缓存功能
+
 例如：
 ```
 transh "npm -h"
@@ -138,3 +142,4 @@ curl -sSL https://nas.dyyapp.space/d/nas/guest/app/install_transh.sh?sign=x-G77U
 chmod +x install_transh.sh
 sudo bash install_transh.sh
 ```
+也可以自行编译并设置环境变量
