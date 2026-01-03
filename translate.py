@@ -36,20 +36,6 @@ CONFIG_FILE = Path.home() / ".transh_config.json"
 CACHE_DIR = Path.home() / ".transh_cache"
 LANG_FILE = Path.home() / ".transh_lang.json"
 
-
-# Default configuration
-DEFAULT_CONFIG = {
-    "base_url": "https://api.deepseek.com",
-    "model": "deepseek-chat",
-    "api_key": "",
-    "target_language": "Chinese",
-    "stream": True
-}
-
-CONFIG_FILE = Path.home() / ".transh_config.json"
-CACHE_DIR = Path.home() / ".transh_cache"
-LANG_FILE = Path.home() / ".transh_lang.json"
-
 # Built-in UI texts (English)
 UI_TEXTS_EN = {
     "executing": "Executing",
@@ -67,20 +53,28 @@ UI_TEXTS_EN = {
     "language_changed": "✓ Language changed and UI texts translated!",
     "usage": "Usage: transh [options] \"command\"",
     "examples": """Examples:
-  transh "npm -h"           # Translate command output
-  transh -t "hello"         # Translate text directly
-  transh -f out.txt in.txt  # Translate file
-  transh -c                 # Configure AI settings
-  transh -l                 # Change target language
-  transh -r "npm -h"        # Force refresh cache""",
+  transh "npm -h"              # Translate command output
+  transh -t "hello"            # Translate text directly
+  transh -t "hello" -l "日本語"  # Translate to Japanese temporarily
+  transh -f out.txt in.txt     # Translate file
+  transh -c                    # Configure AI settings
+  transh -l                    # Change target language
+  transh -l "日本語"             # Change target language directly
+  transh -r "npm -h"           # Force refresh cache""",
     "options": """Options:
   -c              Interactive configuration
   -t "text"       Translate text directly
   -f output.txt   Translate input file and save to output
-  -l              Change target language
+  -l [language]   Change target language (interactive if no language specified)
   -r              Force refresh cache (ignore existing cache)
   --vi-env        View current configuration
-  -h, --help      Show this help message"""
+  -h, --help      Show this help message""",
+    "file_not_found": "Error: File '{}' not found",
+    "error": "Error: {}",
+    "translation_saved": "✓ Translation saved to {}",
+    "no_command": "Error: No command specified",
+    "require_text": "Error: -t requires a text argument",
+    "require_files": "Error: -f requires input and output file arguments"
 }
 
 
@@ -158,7 +152,11 @@ def load_ui_texts() -> Dict[str, str]:
     if LANG_FILE.exists():
         try:
             with open(LANG_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                loaded = json.load(f)
+                # Merge with default to ensure all keys exist
+                result = UI_TEXTS_EN.copy()
+                result.update(loaded)
+                return result
         except Exception:
             pass
     return UI_TEXTS_EN.copy()
@@ -176,6 +174,7 @@ def save_ui_texts(texts: Dict[str, str]):
 
 def interactive_config():
     """Interactive configuration setup."""
+    ui = load_ui_texts()
     print("=== AI Configuration ===\n")
     
     config = load_config() or DEFAULT_CONFIG.copy()
@@ -209,11 +208,12 @@ def interactive_config():
     
     # Translate UI texts if target language is not English
     if config['target_language'].lower() != "english":
-        print(f"\nTranslating UI texts to {config['target_language']}...")
+        translating_text = ui.get('translating_ui', 'Translating UI texts to')
+        print(f"\n{translating_text} {config['target_language']}...")
         translated_texts = translate_ui_texts(config)
         if translated_texts:
             save_ui_texts(translated_texts)
-            print("✓ UI texts translated!")
+            print(ui.get("language_changed", "✓ Language changed and UI texts translated!"))
     else:
         # Remove custom language file if English
         if LANG_FILE.exists():
@@ -251,28 +251,31 @@ Rules:
     return None
 
 
-def change_language():
+def change_language(new_lang: Optional[str] = None):
     """Change target language and retranslate UI texts."""
     config = load_config()
     if not config:
-        print("Configuration not found. Please run: transh -c")
+        ui = load_ui_texts()
+        print(ui.get("config_missing", UI_TEXTS_EN["config_missing"]))
         return
     
     ui = load_ui_texts()
     
-    try:
-        # Display current language using localized text
-        current_lang_text = ui.get("current_language", "Current target language: {}")
-        if "{}" in current_lang_text:
-            print(current_lang_text.format(config['target_language']))
-        else:
-            print(f"{current_lang_text} {config['target_language']}")
-        
-        # Prompt for new language using localized text
-        new_lang = input(ui.get("enter_new_language", "Enter new target language: ")).strip()
-    except KeyboardInterrupt:
-        print("\n\nLanguage change cancelled.")
-        sys.exit(0)
+    # If language not provided, ask interactively
+    if not new_lang:
+        try:
+            # Display current language using localized text
+            current_lang_text = ui.get("current_language", "Current target language: {}")
+            if "{}" in current_lang_text:
+                print(current_lang_text.format(config['target_language']))
+            else:
+                print(f"{current_lang_text} {config['target_language']}")
+            
+            # Prompt for new language using localized text
+            new_lang = input(ui.get("enter_new_language", "Enter new target language: ")).strip()
+        except KeyboardInterrupt:
+            print("\n\nLanguage change cancelled.")
+            sys.exit(0)
     
     if new_lang:
         old_lang = config['target_language']
@@ -290,7 +293,7 @@ def change_language():
                 # If translation fails, keep old language
                 config['target_language'] = old_lang
                 save_config(config)
-                print("Failed to translate UI texts. Language not changed.")
+                print(ui.get("translation_failed", "Failed to translate UI texts. Language not changed."))
         else:
             # Remove custom language file if switching back to English
             if LANG_FILE.exists():
@@ -301,8 +304,10 @@ def change_language():
 def view_config():
     """Display current configuration."""
     config = load_config()
+    ui = load_ui_texts()
+    
     if not config:
-        print("Configuration not found. Please run: transh -c")
+        print(ui.get("config_missing", UI_TEXTS_EN["config_missing"]))
         return
     
     print("=== Current Configuration ===")
@@ -408,30 +413,33 @@ def call_ai_api(text: str, config: Dict, is_json: bool = False, force_no_stream:
         return None
 
 
-def translate_text(text: str, config: Dict, use_cache: bool = True) -> Optional[str]:
+def translate_text(text: str, config: Dict, use_cache: bool = True, temp_language: Optional[str] = None) -> Optional[str]:
     """Translate text with caching support."""
     ui = load_ui_texts()
-    target_lang = config['target_language']
     
-    # Check cache
-    if use_cache:
+    # Use temporary language if provided, otherwise use config language
+    target_lang = temp_language if temp_language else config['target_language']
+    
+    # Create a temporary config with the override language if needed
+    effective_config = config.copy()
+    if temp_language:
+        effective_config['target_language'] = temp_language
+    
+    # Check cache only if not using temporary language and cache is enabled
+    if use_cache and not temp_language:
         cached = load_cache(text, target_lang)
         if cached:
             print(ui.get("cached", "[Using cached translation]"))
-            # Print cached translation if not streaming (streaming mode already printed it during first translation)
-            if not config.get('stream', True):
-                print(cached)
-            else:
-                # In streaming mode, we still need to print the cached result
-                print(cached)
+            # Print cached translation
+            print(cached)
             return cached
     
     # Translate
     print(ui.get("translating", "Translating to {}...").format(target_lang))
-    translation = call_ai_api(text, config)
+    translation = call_ai_api(text, effective_config)
     
-    # Save to cache
-    if translation:
+    # Save to cache only if not using temporary language
+    if translation and not temp_language:
         save_cache(text, translation, target_lang)
     
     return translation
@@ -464,8 +472,28 @@ def main():
         view_config()
         sys.exit(0)
     
-    if "-l" in sys.argv:
-        change_language()
+    # Handle -l (change language) - only if it's the ONLY operation
+    # Skip if -l is used with -t, -f, or a command (temporary language mode)
+    # Check if there's a command (non-option argument that's not after -l)
+    has_command = False
+    for i, arg in enumerate(sys.argv[1:], 1):
+        # Skip the argument after -l
+        if i > 1 and sys.argv[i-1] == "-l":
+            continue
+        # If it's not an option and not right after an option that takes args
+        if not arg.startswith("-") and (i == 1 or sys.argv[i-1] not in ["-t", "-f", "-l"]):
+            has_command = True
+            break
+    
+    if "-l" in sys.argv and "-t" not in sys.argv and "-f" not in sys.argv and not has_command:
+        idx = sys.argv.index("-l")
+        # Check if next argument exists and is not another option
+        if idx + 1 < len(sys.argv) and not sys.argv[idx + 1].startswith("-"):
+            # Direct language change
+            change_language(sys.argv[idx + 1])
+        else:
+            # Interactive language change
+            change_language()
         sys.exit(0)
     
     # Load config
@@ -476,20 +504,24 @@ def main():
     
     use_cache = "-r" not in sys.argv
     
+    # Check for temporary language override (-l used with other commands)
+    temp_language = None
+    for i, arg in enumerate(sys.argv):
+        if arg == "-l" and i + 1 < len(sys.argv) and not sys.argv[i + 1].startswith("-"):
+            temp_language = sys.argv[i + 1]
+            break
+    
     # Handle -t (translate text directly)
     if "-t" in sys.argv:
         idx = sys.argv.index("-t")
         if idx + 1 < len(sys.argv):
             text = sys.argv[idx + 1]
-            translation = translate_text(text, config, use_cache)
-            if translation:
-                # Translation already printed (either from cache or streaming)
-                pass
-            else:
+            translation = translate_text(text, config, use_cache, temp_language)
+            if not translation:
                 print(ui.get("translation_failed", "Translation failed."))
                 sys.exit(1)
         else:
-            print("Error: -t requires a text argument")
+            print(ui.get("require_text", "Error: -t requires a text argument"))
             sys.exit(1)
         sys.exit(0)
     
@@ -504,35 +536,54 @@ def main():
                 with open(input_file, 'r', encoding='utf-8') as f:
                     text = f.read()
                 
-                translation = translate_text(text, config, use_cache)
+                translation = translate_text(text, config, use_cache, temp_language)
                 if translation:
                     with open(output_file, 'w', encoding='utf-8') as f:
                         f.write(translation)
-                    print(f"✓ Translation saved to {output_file}")
+                    saved_text = ui.get("translation_saved", "✓ Translation saved to {}")
+                    if "{}" in saved_text:
+                        print(saved_text.format(output_file))
+                    else:
+                        print(f"{saved_text} {output_file}")
                 else:
                     print(ui.get("translation_failed", "Translation failed."))
                     sys.exit(1)
             except FileNotFoundError:
-                print(f"Error: File '{input_file}' not found")
+                error_text = ui.get("file_not_found", "Error: File '{}' not found")
+                if "{}" in error_text:
+                    print(error_text.format(input_file))
+                else:
+                    print(f"Error: File '{input_file}' not found")
                 sys.exit(1)
             except Exception as e:
-                print(f"Error: {e}")
+                error_text = ui.get("error", "Error: {}")
+                if "{}" in error_text:
+                    print(error_text.format(e))
+                else:
+                    print(f"Error: {e}")
                 sys.exit(1)
         else:
-            print("Error: -f requires input and output file arguments")
+            print(ui.get("require_files", "Error: -f requires input and output file arguments"))
             sys.exit(1)
         sys.exit(0)
     
     # Default: translate command output
     command = sys.argv[-1]
     if command.startswith("-"):
-        print("Error: No command specified")
+        print(ui.get("no_command", "Error: No command specified"))
         show_help()
         sys.exit(1)
     
-    print(f"{ui.get('executing', 'Executing')}: {command}")
+    executing_text = ui.get('executing', 'Executing')
+    print(f"{executing_text}: {command}")
     output = run_command(command)
-    print(ui.get("output_length", "Command output ({} chars):").format(len(output)))
+    
+    output_len_text = ui.get("output_length", "Command output ({} chars)")
+    if "{}" in output_len_text:
+        print(output_len_text.format(len(output)))
+    else:
+        print(f"Command output ({len(output)} chars)")
+    
     print("---")
     print(output)
     print("---")
@@ -541,11 +592,8 @@ def main():
         print(ui.get("no_output", "No output to translate."))
         sys.exit(0)
     
-    translation = translate_text(output, config, use_cache)
-    if translation:
-        # Translation already printed (either from cache or streaming)
-        pass
-    else:
+    translation = translate_text(output, config, use_cache, temp_language)
+    if not translation:
         print(ui.get("translation_failed", "Translation failed."))
         sys.exit(1)
 
