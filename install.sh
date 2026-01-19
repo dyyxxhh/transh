@@ -1,39 +1,39 @@
-#！/垃圾桶/ 巴一
+#!/bin/bash
 
-# transh 安装脚本 - 重构版本
-# 修复 PyInstaller PKG 存子加载错误
+# transh Installation Script - Refactored Version
+# Fixes PyInstaller PKG archive loading errors
 
-设置 -e
+set -e
 
-# 颜色
-红色的='\033[0;31米'
-绿色的='\033[0;32米'
-黄色的='\033[1;33米'
-蓝色的='\033[0;34米'
-北卡罗来纳州='\033[0米' # 无颜色
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
 
-# 配置
-默认_一载_URL=“https://nas。dyyapp。com/d/nas/guest/app/transh？符号=aRliC0UYDfAD3_-40dck43tPBhA9ZD77r77w2_oIeko=:0"
-下载_URL="${TRANSH_DOWNLOAD_URL:-${默认_一载_URL}}"
-安装_DIR=“/usr/local/bin”
-二进制_名称=“transh”
-安装_路径="${安装_目录}/${二进制_名称}"
-MIN_二进制_大小=$((5 * 1024 * 1024)) # 5MB
+# Configuration
+DEFAULT_DOWNLOAD_URL="https://nas.dyyapp.com/d/nas/guest/app/transh?sign=aRliC0UYDfAD3_-40dck43tPBhA9ZD77r77w2_oIeko=:0"
+DOWNLOAD_URL="${TRANSH_DOWNLOAD_URL:-${DEFAULT_DOWNLOAD_URL}}"
+INSTALL_DIR="/usr/local/bin"
+BINARY_NAME="transh"
+INSTALL_PATH="${INSTALL_DIR}/${BINARY_NAME}"
+MIN_BINARY_SIZE=$((5 * 1024 * 1024)) # 5MB minimum size
 
-# 打印彩色输出的函数
-打子_信息() {
- 回声 -e "${蓝色}ℹ${NC} 1美元"
+# Function to print colored output
+print_info() {
+    echo -e "${BLUE}ℹ${NC} $1"
 }
 
-打子_成子() {
- 回声 -e "${绿色}✓${NC} 1美元"
+print_success() {
+    echo -e "${GREEN}✓${NC} $1"
 }
 
-打子_错误() {
- 回声 -e "${红色}✗${NC} 1美元"
+print_error() {
+    echo -e "${RED}✗${NC} $1"
 }
 
-打子_警子() {
+print_warning() {
     echo -e "${YELLOW}⚠${NC} $1"
 }
 
@@ -49,19 +49,19 @@ check_root() {
 # Function to check dependencies
 check_dependencies() {
     local missing_deps=""
-    
+
     # Check for curl or wget
     if ! command -v curl > /dev/null 2>&1 && ! command -v wget > /dev/null 2>&1; then
         missing_deps="curl or wget"
     fi
-    
+
     # Check for other essential tools
     for tool in file chmod cp rm; do
         if ! command -v $tool > /dev/null 2>&1; then
             missing_deps="${missing_deps} $tool"
         fi
     done
-    
+
     if [ -n "${missing_deps}" ]; then
         print_error "Missing dependencies: ${missing_deps}"
         echo ""
@@ -76,25 +76,25 @@ check_dependencies() {
 # Function to validate binary file
 validate_binary() {
     local file_path="$1"
-    
+
     # Check if file exists and has content
     if [ ! -f "${file_path}" ]; then
         print_error "File does not exist: ${file_path}"
         return 1
     fi
-    
+
     if [ ! -s "${file_path}" ]; then
         print_error "File is empty: ${file_path}"
         return 1
     fi
-    
+
     # Check minimum size
     local file_size=$(stat -c%s "${file_path}" 2>/dev/null || stat -f%z "${file_path}" 2>/dev/null || echo "0")
     if [ "${file_size}" -lt "${MIN_BINARY_SIZE}" ]; then
         print_error "File is too small (${file_size} bytes), expected at least ${MIN_BINARY_SIZE} bytes"
         return 1
     fi
-    
+
     # Check if it's a valid ELF executable
     local file_type=$(file -b "${file_path}" 2>/dev/null || echo "unknown")
     if echo "${file_type}" | grep -qi "ELF.*executable"; then
@@ -117,9 +117,9 @@ validate_binary() {
 # Function to test binary execution
 test_binary() {
     local binary_path="$1"
-    
+
     print_info "Testing binary execution..."
-    
+
     # Test with --help flag
     if "${binary_path}" --help >/dev/null 2>&1; then
         print_success "Binary test passed (--help works)"
@@ -128,7 +128,7 @@ test_binary() {
         # Try to capture error
         local error_output
         error_output=$("${binary_path}" --help 2>&1 || true)
-        
+
         if echo "${error_output}" | grep -qi "PYI-.*ERROR.*Could not load PyInstaller"; then
             print_error "PyInstaller PKG archive loading error detected:"
             echo "${error_output}" | grep -i "PYI-"
@@ -148,18 +148,18 @@ download_file() {
     local max_retries=3
     local retry_count=0
     local download_success=false
-    
+
     while [ ${retry_count} -lt ${max_retries} ]; do
         retry_count=$((retry_count + 1))
-        
+
         if [ ${retry_count} -gt 1 ]; then
             print_info "Retry ${retry_count}/${max_retries}..."
             sleep 2
         fi
-        
+
         # Clean up any existing file
         rm -f "${output_path}"
-        
+
         # Try curl first, then wget
         if command -v curl > /dev/null 2>&1; then
             print_info "Downloading with curl (attempt ${retry_count})..."
@@ -178,7 +178,7 @@ download_file() {
                 continue
             fi
         fi
-        
+
         # Validate the downloaded file
         if [ "${download_success}" = true ] && validate_binary "${output_path}"; then
             print_success "Download completed successfully"
@@ -188,7 +188,7 @@ download_file() {
             rm -f "${output_path}"
         fi
     done
-    
+
     print_error "Download failed after ${max_retries} attempts"
     return 1
 }
@@ -197,26 +197,26 @@ download_file() {
 install_binary() {
     local source_path="$1"
     local dest_path="$2"
-    
+
     print_info "Installing binary to ${dest_path}..."
-    
+
     # Backup existing file if it exists
     if [ -f "${dest_path}" ]; then
         local backup_path="${dest_path}.backup.$(date +%s)"
         cp -f "${dest_path}" "${backup_path}"
         print_info "Backed up existing binary to ${backup_path}"
     fi
-    
+
     # Copy with preserve mode
     cp -f "${source_path}" "${dest_path}"
-    
+
     # Set executable permissions
     chmod 755 "${dest_path}"
-    
+
     # Verify the installed file
     if validate_binary "${dest_path}"; then
         print_success "Binary installed successfully"
-        
+
         # Test the installed binary
         if test_binary "${dest_path}"; then
             print_success "Installation verification passed"
@@ -250,10 +250,10 @@ install_transh() {
     echo "  transh Installation (Refactored)"
     echo "========================================="
     echo ""
-    
+
     check_root
     check_dependencies
-    
+
     # Check if already installed
     if [ -f "${INSTALL_PATH}" ]; then
         print_warning "transh is already installed at ${INSTALL_PATH}"
@@ -264,14 +264,14 @@ install_transh() {
             exit 0
         fi
     fi
-    
+
     # Create temp directory for download
     local temp_dir=$(mktemp -d)
     local temp_file="${temp_dir}/transh_download"
-    
+
     # Clean up temp directory on exit
     trap "rm -rf '${temp_dir}'" EXIT
-    
+
     # Download transh
     print_info "Downloading transh..."
     if ! download_file "${DOWNLOAD_URL}" "${temp_file}"; then
@@ -282,15 +282,15 @@ install_transh() {
         echo "  2. Build from source: python -m PyInstaller transh.spec"
         exit 1
     fi
-    
+
     # Install the binary
     if install_binary "${temp_file}" "${INSTALL_PATH}"; then
         print_success "transh installed successfully!"
-        
+
         # Verify PATH availability
         if command -v transh > /dev/null 2>&1; then
             print_success "transh is now available in your PATH"
-            
+
             # Configuration instructions
             echo ""
             print_info "Configuration required before use:"
@@ -315,36 +315,36 @@ install_transh() {
 # Function to install from local file
 install_local() {
     local local_file="$1"
-    
+
     echo ""
     echo "========================================="
     echo "  transh Installation (Local File)"
     echo "========================================="
     echo ""
-    
+
     check_root
-    
+
     if [ -z "${local_file}" ]; then
         print_error "No file path provided"
         echo "Usage: $0 install-local /path/to/transh"
         exit 1
     fi
-    
+
     if [ ! -f "${local_file}" ]; then
         print_error "File not found: ${local_file}"
         exit 1
     fi
-    
+
     # Validate the local file
     if ! validate_binary "${local_file}"; then
         print_error "Local file validation failed"
         exit 1
     fi
-    
+
     # Install the binary
     if install_binary "${local_file}" "${INSTALL_PATH}"; then
         print_success "transh installed successfully from local file!"
-        
+
         # Verify PATH availability
         if command -v transh > /dev/null 2>&1; then
             print_success "transh is now available in your PATH"
@@ -362,29 +362,29 @@ uninstall_transh() {
     echo "  transh Uninstallation"
     echo "========================================="
     echo ""
-    
+
     check_root
-    
+
     if [ ! -f "${INSTALL_PATH}" ]; then
         print_warning "transh is not installed"
         exit 0
     fi
-    
+
     read -p "Are you sure you want to uninstall transh? (y/N): " -r
     echo
     if [ "${REPLY}" != "y" ] && [ "${REPLY}" != "Y" ]; then
         print_info "Uninstallation cancelled"
         exit 0
     fi
-    
+
     # Remove binary
     print_info "Removing ${INSTALL_PATH}..."
     rm -f "${INSTALL_PATH}"
-    
+
     # Check if removal was successful
     if [ ! -f "${INSTALL_PATH}" ]; then
         print_success "transh uninstalled successfully"
-        
+
         # Ask about configuration files
         echo ""
         read -p "Remove configuration and cache files? (y/N): " -r
@@ -396,7 +396,7 @@ uninstall_transh() {
             else
                 user_home="${HOME}"
             fi
-            
+
             print_info "Removing configuration files..."
             rm -rf "${user_home}/.transh_config.json" \
                    "${user_home}/.transh_cache" \
@@ -452,7 +452,7 @@ main() {
             echo "4) Show help"
             echo "5) Exit"
             echo ""
-            
+
             read -p "Select option (1-5): " choice
             case ${choice} in
                 1)
