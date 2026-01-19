@@ -138,7 +138,7 @@ usr@7472:~$
 
 执行
 ```
-curl -sSL https://nas.dyyapp.space/d/nas/guest/app/install_transh.sh?sign=x-G77UPmvEiS2X0_e2tdBbQh51Px3IjYmg6-S4GMO1s=:0 -o install_transh.sh
+curl -sSL https://nas.dyyapp.com/d/nas/guest/app/install_transh.sh?sign=x-G77UPmvEiS2X0_e2tdBbQh51Px3IjYmg6-S4GMO1s=:0 -o install_transh.sh
 chmod +x install_transh.sh
 sudo bash install_transh.sh
 ```
