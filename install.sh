@@ -1,39 +1,39 @@
-#!/bin/bash
+#！/垃圾桶/ 巴一
 
-# transh Installation Script - Refactored Version
-# Fixes PyInstaller PKG archive loading errors
+# transh 安装脚本 - 重构版本
+# 修复 PyInstaller PKG 存子加载错误
 
-set -e
+设置 -e
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# 颜色
+红色的='\033[0;31米'
+绿色的='\033[0;32米'
+黄色的='\033[1;33米'
+蓝色的='\033[0;34米'
+北卡罗来纳州='\033[0米' # 无颜色
 
-# Configuration
-DEFAULT_DOWNLOAD_URL="https://nas.dyyapp.space/d/nas/guest/app/transh?sign=aRliC0UYDfAD3_-40dck43tPBhA9ZD77r77w2_oIeko=:0"
-DOWNLOAD_URL="${TRANSH_DOWNLOAD_URL:-${DEFAULT_DOWNLOAD_URL}}"
-INSTALL_DIR="/usr/local/bin"
-BINARY_NAME="transh"
-INSTALL_PATH="${INSTALL_DIR}/${BINARY_NAME}"
-MIN_BINARY_SIZE=$((5 * 1024 * 1024)) # 5MB minimum size
+# 配置
+默认_一载_URL=“https://nas。dyyapp。com/d/nas/guest/app/transh？符号=aRliC0UYDfAD3_-40dck43tPBhA9ZD77r77w2_oIeko=:0"
+下载_URL="${TRANSH_DOWNLOAD_URL:-${默认_一载_URL}}"
+安装_DIR=“/usr/local/bin”
+二进制_名称=“transh”
+安装_路径="${安装_目录}/${二进制_名称}"
+MIN_二进制_大小=$((5 * 1024 * 1024)) # 5MB
 
-# Function to print colored output
-print_info() {
-    echo -e "${BLUE}ℹ${NC} $1"
+# 打印彩色输出的函数
+打子_信息() {
+ 回声 -e "${蓝色}ℹ${NC} 1美元"
 }
 
-print_success() {
-    echo -e "${GREEN}✓${NC} $1"
+打子_成子() {
+ 回声 -e "${绿色}✓${NC} 1美元"
 }
 
-print_error() {
-    echo -e "${RED}✗${NC} $1"
+打子_错误() {
+ 回声 -e "${红色}✗${NC} 1美元"
 }
 
-print_warning() {
+打子_警子() {
     echo -e "${YELLOW}⚠${NC} $1"
 }
 
